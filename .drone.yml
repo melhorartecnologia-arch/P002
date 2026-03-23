@@ -1,0 +1,102 @@
+kind: pipeline
+type: docker
+name: dora-ci
+
+trigger:
+  branch:
+    - main
+    - develop
+    - feature/*
+  event:
+    - push
+    - pull_request
+
+steps:
+  - name: install
+    image: node:22-alpine
+    commands:
+      - npm ci
+
+  - name: lint
+    image: node:22-alpine
+    commands:
+      - npx turbo run lint
+    depends_on:
+      - install
+
+  - name: build
+    image: node:22-alpine
+    commands:
+      - npx turbo run build
+    depends_on:
+      - install
+
+  - name: test
+    image: node:22-alpine
+    commands:
+      - npx turbo run test
+    depends_on:
+      - build
+
+  - name: docker-build-api
+    image: plugins/docker
+    settings:
+      repo: registry.local/dora/api
+      context: .
+      dockerfile: apps/api/Dockerfile
+      tags:
+        - ${DRONE_COMMIT_SHA:0:8}
+        - latest
+    when:
+      branch:
+        - main
+    depends_on:
+      - test
+
+  - name: docker-build-web
+    image: plugins/docker
+    settings:
+      repo: registry.local/dora/web
+      context: .
+      dockerfile: apps/web/Dockerfile
+      tags:
+        - ${DRONE_COMMIT_SHA:0:8}
+        - latest
+    when:
+      branch:
+        - main
+    depends_on:
+      - test
+
+  - name: docker-build-worker
+    image: plugins/docker
+    settings:
+      repo: registry.local/dora/worker
+      context: .
+      dockerfile: Dockerfile.worker
+      tags:
+        - ${DRONE_COMMIT_SHA:0:8}
+        - latest
+    when:
+      branch:
+        - main
+    depends_on:
+      - test
+
+  - name: deploy
+    image: alpine/k8s:1.29.0
+    commands:
+      - kubectl set image deployment/dora-api api=registry.local/dora/api:${DRONE_COMMIT_SHA:0:8}
+      - kubectl set image deployment/dora-web web=registry.local/dora/web:${DRONE_COMMIT_SHA:0:8}
+      - kubectl set image deployment/dora-worker worker=registry.local/dora/worker:${DRONE_COMMIT_SHA:0:8}
+      - kubectl rollout status deployment/dora-api
+      - kubectl rollout status deployment/dora-web
+    when:
+      branch:
+        - main
+      event:
+        - push
+    depends_on:
+      - docker-build-api
+      - docker-build-web
+      - docker-build-worker

@@ -1,0 +1,32 @@
+{
+  "name": "@dora/api",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "fastify": "^5.2.0",
+    "@fastify/cors": "^11.0.0",
+    "@fastify/multipart": "^9.0.0",
+    "@fastify/rate-limit": "^10.2.0",
+    "@fastify/swagger": "^9.4.0",
+    "@fastify/swagger-ui": "^5.2.0",
+    "@fastify/jwt": "^9.0.0",
+    "@fastify/websocket": "^11.0.0",
+    "zod": "^3.24.0",
+    "@dora/database": "*",
+    "@dora/shared": "*",
+    "@dora/logger": "*",
+    "@dora/queue": "*",
+    "@dora/storage": "*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "@types/node": "^22.13.0"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "name": "dora",
+  "version": "1.0.0",
+  "description": "DORA – Diários Oficiais: Rastreamento e Análise",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
+    "db:generate": "npm run prisma:generate --workspace=@dora/database",
+    "db:migrate": "npm run prisma:migrate --workspace=@dora/database",
+    "db:push": "npm run prisma:push --workspace=@dora/database",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:build": "docker compose build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.0",
+    "prettier": "^3.5.0",
+    "turbo": "^2.4.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=22.0.0",
+    "npm": ">=10.0.0"
+  },
+  "packageManager": "npm@10.9.0"
+}

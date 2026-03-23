@@ -1,0 +1,14 @@
+{
+  "name": "@dora/ai-client",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": { "build": "tsc" },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "p-limit": "^6.2.0",
+    "p-retry": "^6.2.0"
+  },
+  "devDependencies": { "typescript": "^5.7.0", "@types/node": "^22.13.0" }
+}

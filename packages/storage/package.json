@@ -1,0 +1,14 @@
+{
+  "name": "@dora/storage",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": { "build": "tsc" },
+  "dependencies": {
+    "minio": "^8.0.0",
+    "@elastic/elasticsearch": "^8.17.0",
+    "@qdrant/js-client-rest": "^1.13.0"
+  },
+  "devDependencies": { "typescript": "^5.7.0", "@types/node": "^22.13.0" }
+}

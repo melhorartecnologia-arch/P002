@@ -1,0 +1,230 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum Esfera {
+  FEDERAL
+  ESTADUAL
+  MUNICIPAL
+}
+
+enum SpiderType {
+  CHEERIO
+  PLAYWRIGHT
+}
+
+enum TipoEdicao {
+  ORDINARIA
+  EXTRA
+  SUPLEMENTAR
+}
+
+enum StatusProcessamento {
+  PENDENTE
+  PROCESSANDO
+  CONCLUIDO
+  ERRO
+}
+
+enum TipoAto {
+  DECRETO
+  PORTARIA
+  EDITAL
+  RESOLUCAO
+  INSTRUCAO_NORMATIVA
+  LEI
+  MEDIDA_PROVISORIA
+  ATA
+  CONTRATO
+  CONVENIO
+  AVISO
+  DESPACHO
+  PARECER
+  EXTRATO
+  OUTRO
+}
+
+enum TipoAlerta {
+  KEYWORD
+  ENTITY
+  TEMA
+  ORGAO
+  SEMANTIC
+}
+
+enum CanalNotificacao {
+  EMAIL
+  PUSH
+  WEBHOOK
+  SLACK
+  WHATSAPP
+}
+
+enum Role {
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(uuid()) @map("id")
+  email        String   @unique @map("email")
+  name         String   @map("name")
+  passwordHash String   @map("password_hash")
+  role         Role     @default(VIEWER) @map("role")
+  active       Boolean  @default(true) @map("active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  alertas   Alerta[]
+  auditLogs AuditLog[]
+
+  @@map("users")
+}
+
+model Fonte {
+  id             String     @id @default(uuid()) @map("id")
+  nome           String     @map("nome")
+  esfera         Esfera     @map("esfera")
+  uf             String?    @map("uf")
+  urlBase        String     @map("url_base")
+  spiderType     SpiderType @map("spider_type")
+  cronExpression String     @map("cron_expression")
+  ativo          Boolean    @default(true) @map("ativo")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+
+  edicoes Edicao[]
+
+  @@index([esfera, uf])
+  @@map("fontes")
+}
+
+model Edicao {
+  id               String              @id @default(uuid()) @map("id")
+  fonteId          String              @map("fonte_id")
+  numero           String              @map("numero")
+  dataPublicacao   DateTime            @map("data_publicacao")
+  tipo             TipoEdicao          @map("tipo")
+  hashConteudo     String              @unique @map("hash_conteudo")
+  urlOriginal      String              @map("url_original")
+  minioPath        String              @map("minio_path")
+  totalPaginas     Int                 @map("total_paginas")
+  status           StatusProcessamento @default(PENDENTE) @map("status")
+  claudeTokensUsed Int                 @default(0) @map("claude_tokens_used")
+  processadoEm     DateTime?           @map("processado_em")
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
+
+  fonte         Fonte          @relation(fields: [fonteId], references: [id])
+  atos          Ato[]
+  processingJob ProcessingJob?
+
+  @@index([fonteId, dataPublicacao])
+  @@index([status])
+  @@map("edicoes")
+}
+
+model Ato {
+  id             String    @id @default(uuid()) @map("id")
+  edicaoId       String    @map("edicao_id")
+  tipoAto        TipoAto  @map("tipo_ato")
+  orgaoEmissor   String    @map("orgao_emissor")
+  titulo         String    @map("titulo")
+  conteudoTexto  String    @map("conteudo_texto")
+  resumo         String?   @map("resumo")
+  dataAssinatura DateTime? @map("data_assinatura")
+  paginaInicio   Int       @map("pagina_inicio")
+  paginaFim      Int       @map("pagina_fim")
+  temas          Json      @map("temas")
+  entidades      Json      @map("entidades")
+  qdrantId       String?   @map("qdrant_id")
+  claudeModel    String    @map("claude_model")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  edicao       Edicao        @relation(fields: [edicaoId], references: [id])
+  notificacoes Notificacao[]
+
+  @@index([tipoAto])
+  @@index([orgaoEmissor])
+  @@index([edicaoId])
+  @@map("atos")
+}
+
+model Alerta {
+  id              String            @id @default(uuid()) @map("id")
+  userId          String            @map("user_id")
+  nome            String            @map("nome")
+  tipo            TipoAlerta        @map("tipo")
+  regras          Json              @map("regras")
+  promptSemantico String?           @map("prompt_semantico")
+  canais          CanalNotificacao[] @map("canais")
+  ativo           Boolean           @default(true) @map("ativo")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  user         User          @relation(fields: [userId], references: [id])
+  notificacoes Notificacao[]
+
+  @@map("alertas")
+}
+
+model Notificacao {
+  id        String          @id @default(uuid()) @map("id")
+  alertaId  String          @map("alerta_id")
+  atoId     String          @map("ato_id")
+  canal     CanalNotificacao @map("canal")
+  conteudo  Json            @map("conteudo")
+  enviadoEm DateTime?       @map("enviado_em")
+  erro      String?         @map("erro")
+  createdAt DateTime        @default(now()) @map("created_at")
+
+  alerta Alerta @relation(fields: [alertaId], references: [id])
+  ato    Ato    @relation(fields: [atoId], references: [id])
+
+  @@map("notificacoes")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid()) @map("id")
+  userId    String   @map("user_id")
+  acao      String   @map("acao")
+  recurso   String   @map("recurso")
+  recursoId String?  @map("recurso_id")
+  detalhes  Json?    @map("detalhes")
+  ip        String?  @map("ip")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@map("audit_logs")
+}
+
+model ProcessingJob {
+  id            String    @id @default(uuid()) @map("id")
+  edicaoId      String    @unique @map("edicao_id")
+  etapa         String    @map("etapa")
+  tentativas    Int       @default(0) @map("tentativas")
+  maxTentativas Int       @default(5) @map("max_tentativas")
+  erro          String?   @map("erro")
+  iniciadoEm    DateTime? @map("iniciado_em")
+  concluidoEm   DateTime? @map("concluido_em")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  edicao Edicao @relation(fields: [edicaoId], references: [id])
+
+  @@index([etapa])
+  @@map("processing_jobs")
+}

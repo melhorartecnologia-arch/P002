@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dora-web
+  namespace: dora
+  labels:
+    app: dora
+    component: web
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: dora
+      component: web
+  template:
+    metadata:
+      labels:
+        app: dora
+        component: web
+    spec:
+      containers:
+        - name: web
+          image: registry.local/dora/web:latest
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - secretRef:
+                name: dora-secrets
+            - configMapRef:
+                name: dora-config
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dora-web
+  namespace: dora
+spec:
+  selector:
+    app: dora
+    component: web
+  ports:
+    - port: 3000
+      targetPort: 3000
+  type: ClusterIP

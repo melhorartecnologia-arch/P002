@@ -1,0 +1,67 @@
+groups:
+  - name: dora-alerts
+    rules:
+      - alert: APIHighLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="dora-api"}[5m])) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API P95 latency above 500ms"
+          description: "{{ $labels.instance }} P95 latency is {{ $value }}s"
+
+      - alert: APIHighErrorRate
+        expr: rate(http_requests_total{job="dora-api", status=~"5.."}[5m]) / rate(http_requests_total{job="dora-api"}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API error rate above 5%"
+
+      - alert: ProcessingQueueBacklog
+        expr: bullmq_queue_waiting{queue="processing"} > 1000
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Processing queue backlog exceeds 1000 jobs"
+
+      - alert: ScrapingFailureRate
+        expr: rate(scraping_errors_total[1h]) / rate(scraping_attempts_total[1h]) > 0.2
+        for: 30m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Scraping failure rate above 20%"
+
+      - alert: DiskSpaceWarning
+        expr: (node_filesystem_avail_bytes / node_filesystem_size_bytes) < 0.15
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disk space below 15% on {{ $labels.mountpoint }}"
+
+      - alert: PostgreSQLDown
+        expr: pg_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL is down"
+
+      - alert: ElasticsearchClusterRed
+        expr: elasticsearch_cluster_health_status{color="red"} == 1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Elasticsearch cluster health is RED"
+
+      - alert: ClaudeAPIHighCost
+        expr: increase(claude_api_tokens_total[24h]) * 0.000003 > 300
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Claude API daily cost estimate exceeds $300"

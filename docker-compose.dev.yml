@@ -1,0 +1,51 @@
+version: "3.8"
+
+services:
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+      target: builder
+    volumes:
+      - ./apps/api/src:/app/apps/api/src
+      - ./packages:/app/packages
+    command: ["npx", "tsx", "watch", "src/main.ts"]
+    environment:
+      - NODE_ENV=development
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+      target: deps
+    volumes:
+      - ./apps/web/src:/app/apps/web/src
+      - ./apps/web/app:/app/apps/web/app
+      - ./apps/web/public:/app/apps/web/public
+      - ./packages:/app/packages
+    command: ["npx", "next", "dev", "--port", "3000"]
+    environment:
+      - NODE_ENV=development
+      - WATCHPACK_POLLING=true
+
+  worker-processing:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+      target: builder
+    volumes:
+      - ./packages:/app/packages
+    command: ["npx", "tsx", "watch", "packages/workers/src/processing-worker.ts"]
+    environment:
+      - NODE_ENV=development
+
+  worker-scraping:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+      target: builder
+    volumes:
+      - ./packages:/app/packages
+    command: ["npx", "tsx", "watch", "packages/workers/src/scraping-worker.ts"]
+    environment:
+      - NODE_ENV=development

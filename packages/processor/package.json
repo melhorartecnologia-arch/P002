@@ -1,0 +1,15 @@
+{
+  "name": "@dora/processor",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": { "build": "tsc" },
+  "dependencies": {
+    "sharp": "^0.33.0",
+    "pdf-parse": "^1.1.1",
+    "pdf-lib": "^1.17.1",
+    "p-limit": "^6.2.0"
+  },
+  "devDependencies": { "typescript": "^5.7.0", "@types/node": "^22.13.0" }
+}

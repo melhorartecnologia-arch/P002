@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dora-worker-processing
+  namespace: dora
+  labels:
+    app: dora
+    component: worker-processing
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: dora
+      component: worker-processing
+  template:
+    metadata:
+      labels:
+        app: dora
+        component: worker-processing
+    spec:
+      containers:
+        - name: worker
+          image: registry.local/dora/worker:latest
+          command: ["node", "dist/packages/processor/src/workers/processing-worker.js"]
+          envFrom:
+            - secretRef:
+                name: dora-secrets
+            - configMapRef:
+                name: dora-config
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "2Gi"
+              cpu: "2000m"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dora-worker-scraping
+  namespace: dora
+  labels:
+    app: dora
+    component: worker-scraping
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: dora
+      component: worker-scraping
+  template:
+    metadata:
+      labels:
+        app: dora
+        component: worker-scraping
+    spec:
+      containers:
+        - name: worker
+          image: registry.local/dora/worker:latest
+          command: ["node", "dist/packages/processor/src/workers/scraping-worker.js"]
+          envFrom:
+            - secretRef:
+                name: dora-secrets
+            - configMapRef:
+                name: dora-config
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "4Gi"
+              cpu: "2000m"
