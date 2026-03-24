@@ -443,7 +443,7 @@ ${c.cyan}╔══════════════════════�
     log("setup", "Executando script de setup da plataforma...", c.cyan);
     if (IS_WIN) {
       execSync(
-        `powershell -ExecutionPolicy Bypass -File "${join(ROOT, "scripts", "setup-local.ps1")}"`,
+        `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${join(ROOT, "scripts", "setup-local.ps1")}"`,
         { cwd: ROOT, stdio: "inherit" }
       );
     } else {
