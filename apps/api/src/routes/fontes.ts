@@ -1,6 +1,26 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { z } from 'zod';
 import { scrapingQueue } from '@dora/queue';
 import { verifyToken, requireRole } from '../middleware/auth.js';
+
+const createFonteBody = z.object({
+  nome: z.string().min(1).max(300),
+  esfera: z.enum(['FEDERAL', 'ESTADUAL', 'MUNICIPAL']),
+  uf: z.string().length(2).optional(),
+  urlBase: z.string().url(),
+  spiderType: z.enum(['CHEERIO', 'PLAYWRIGHT']).default('CHEERIO'),
+  cronExpression: z.string().default('0 6 * * 1-5'),
+});
+
+const updateFonteBody = z.object({
+  nome: z.string().min(1).max(300).optional(),
+  esfera: z.enum(['FEDERAL', 'ESTADUAL', 'MUNICIPAL']).optional(),
+  uf: z.string().length(2).nullable().optional(),
+  urlBase: z.string().url().optional(),
+  spiderType: z.enum(['CHEERIO', 'PLAYWRIGHT']).optional(),
+  cronExpression: z.string().optional(),
+  ativo: z.boolean().optional(),
+});
 
 /**
  * Fontes (sources) route plugin.
@@ -104,6 +124,99 @@ export async function fontesRoutes(app: FastifyInstance): Promise<void> {
           edicoesRecentes: fonte.edicoes,
         },
       });
+    },
+  );
+
+  /**
+   * POST /api/v1/fontes
+   * Create a new source. Requires ADMIN or EDITOR role.
+   */
+  app.post(
+    '/',
+    { onRequest: [verifyToken, requireRole('ADMIN', 'EDITOR')] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const parsed = createFonteBody.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({
+          statusCode: 400,
+          error: 'Bad Request',
+          message: 'Dados inválidos',
+          details: parsed.error.flatten(),
+        });
+      }
+
+      const { nome, esfera, uf, urlBase, spiderType, cronExpression } = parsed.data;
+
+      const fonte = await app.prisma.fonte.create({
+        data: { nome, esfera, uf, urlBase, spiderType, cronExpression },
+      });
+
+      return reply.status(201).send({ data: fonte });
+    },
+  );
+
+  /**
+   * PUT /api/v1/fontes/:id
+   * Update an existing source. Requires ADMIN or EDITOR role.
+   */
+  app.put(
+    '/:id',
+    { onRequest: [verifyToken, requireRole('ADMIN', 'EDITOR')] },
+    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+      const { id } = request.params;
+      const parsed = updateFonteBody.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({
+          statusCode: 400,
+          error: 'Bad Request',
+          message: 'Dados inválidos',
+          details: parsed.error.flatten(),
+        });
+      }
+
+      const existing = await app.prisma.fonte.findUnique({ where: { id } });
+      if (!existing) {
+        return reply.status(404).send({
+          statusCode: 404,
+          error: 'Not Found',
+          message: `Fonte com ID ${id} não encontrada`,
+        });
+      }
+
+      const fonte = await app.prisma.fonte.update({
+        where: { id },
+        data: parsed.data,
+      });
+
+      return reply.send({ data: fonte });
+    },
+  );
+
+  /**
+   * DELETE /api/v1/fontes/:id
+   * Soft-delete (deactivate) a source. Requires ADMIN role.
+   */
+  app.delete(
+    '/:id',
+    { onRequest: [verifyToken, requireRole('ADMIN')] },
+    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+      const { id } = request.params;
+
+      const existing = await app.prisma.fonte.findUnique({ where: { id } });
+      if (!existing) {
+        return reply.status(404).send({
+          statusCode: 404,
+          error: 'Not Found',
+          message: `Fonte com ID ${id} não encontrada`,
+        });
+      }
+
+      await app.prisma.fonte.update({
+        where: { id },
+        data: { ativo: false },
+      });
+
+      return reply.status(204).send();
     },
   );
 

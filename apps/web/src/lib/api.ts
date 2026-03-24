@@ -106,7 +106,19 @@ export interface Fonte {
   esfera: string;
   uf?: string;
   urlBase: string;
+  spiderType?: string;
+  cronExpression?: string;
   ativo: boolean;
+  totalEdicoes?: number;
+}
+
+export interface CreateFonteData {
+  nome: string;
+  esfera: string;
+  uf?: string;
+  urlBase: string;
+  spiderType?: string;
+  cronExpression?: string;
 }
 
 export interface ChatMessage {
@@ -162,6 +174,24 @@ export function searchAtos(params: {
 
 export function getFontes() {
   return fetchApi<{ data: Fonte[]; meta: { total: number } }>('/api/v1/fontes');
+}
+
+export function createFonte(data: CreateFonteData) {
+  return fetchApi<{ data: Fonte }>('/api/v1/fontes', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export function updateFonte(id: string, data: Partial<CreateFonteData & { ativo: boolean }>) {
+  return fetchApi<{ data: Fonte }>(`/api/v1/fontes/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export function deleteFonte(id: string) {
+  return fetchApi<void>(`/api/v1/fontes/${id}`, { method: 'DELETE' });
 }
 
 export async function uploadPdf(

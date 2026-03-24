@@ -8,6 +8,7 @@ import {
   getAlertas,
   getAnalytics,
   searchAtos,
+  getFontes,
 } from './api';
 
 export function useDashboard() {
@@ -38,6 +39,10 @@ export function useAtos(params?: {
 
 export function useAlertas() {
   return useSWR('alertas', getAlertas);
+}
+
+export function useFontes() {
+  return useSWR('fontes', () => getFontes().then((r) => r.data));
 }
 
 export function useAnalytics() {
