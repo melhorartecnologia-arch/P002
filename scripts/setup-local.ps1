@@ -23,7 +23,12 @@ function Write-Skip($msg) { Write-Host "   [SKIP] $msg" -ForegroundColor Yellow 
 # -----------------------------------------------
 # Create install directory
 # -----------------------------------------------
-$InstallDir = (Resolve-Path -Path $InstallDir -ErrorAction SilentlyContinue) ?? (New-Item -ItemType Directory -Path $InstallDir -Force).FullName
+$resolved = Resolve-Path -Path $InstallDir -ErrorAction SilentlyContinue
+if ($resolved) {
+    $InstallDir = $resolved.Path
+} else {
+    $InstallDir = (New-Item -ItemType Directory -Path $InstallDir -Force).FullName
+}
 Write-Step "Diretorio de instalacao: $InstallDir"
 
 # -----------------------------------------------
