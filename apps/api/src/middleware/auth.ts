@@ -18,8 +18,23 @@ declare module '@fastify/jwt' {
 /**
  * Fastify onRequest hook that verifies the JWT token from the Authorization header.
  * Populates request.user with the decoded token payload.
+ *
+ * In development mode (NODE_ENV !== 'production'), if no Authorization header is
+ * present, a default admin user is injected to allow testing without auth setup.
  */
 export async function verifyToken(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  // Dev bypass: allow unauthenticated requests when no Authorization header is sent
+  if (process.env.NODE_ENV !== 'production' && !request.headers.authorization) {
+    (request as Record<string, unknown>).user = {
+      sub: 'dev-admin',
+      email: 'dev@dora.local',
+      role: 'ADMIN',
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + 86400,
+    } satisfies JwtPayload;
+    return;
+  }
+
   try {
     await request.jwtVerify();
   } catch (err) {

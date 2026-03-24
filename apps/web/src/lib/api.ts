@@ -1,4 +1,4 @@
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 interface FetchOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
@@ -100,6 +100,15 @@ export interface AnalyticsData {
   tendencias: { tema: string; variacao: number }[];
 }
 
+export interface Fonte {
+  id: string;
+  nome: string;
+  esfera: string;
+  uf?: string;
+  urlBase: string;
+  ativo: boolean;
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
@@ -151,9 +160,20 @@ export function searchAtos(params: {
   return fetchApi<SearchResult>('/api/v1/search', { params });
 }
 
-export async function uploadPdf(file: File) {
+export function getFontes() {
+  return fetchApi<{ data: Fonte[]; meta: { total: number } }>('/api/v1/fontes');
+}
+
+export async function uploadPdf(
+  file: File,
+  fields: { fonteId: string; numero?: string; dataPublicacao?: string; tipo?: string },
+) {
   const formData = new FormData();
   formData.append('file', file);
+  formData.append('fonteId', fields.fonteId);
+  if (fields.numero) formData.append('numero', fields.numero);
+  if (fields.dataPublicacao) formData.append('dataPublicacao', fields.dataPublicacao);
+  if (fields.tipo) formData.append('tipo', fields.tipo);
 
   const res = await fetch(`${BASE_URL}/api/v1/upload`, {
     method: 'POST',
