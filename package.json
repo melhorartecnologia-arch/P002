@@ -18,7 +18,11 @@
     "db:push": "npm run prisma:push --workspace=@dora/database",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
-    "docker:build": "docker compose build"
+    "docker:build": "docker compose build",
+    "local:setup": "node scripts/dev-local.mjs setup",
+    "local:start": "node scripts/dev-local.mjs all",
+    "local:infra": "node scripts/dev-local.mjs infra",
+    "local:app": "node scripts/dev-local.mjs app"
   },
   "devDependencies": {
     "@types/node": "^22.13.0",
