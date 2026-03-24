@@ -69,16 +69,18 @@ if (Test-Path "$redisDir\redis-server.exe") {
     Write-Skip "Redis ja instalado em $redisDir"
 } else {
     New-Item -ItemType Directory -Path $redisDir -Force | Out-Null
-    $redisUrl = "https://github.com/zkteco-home/redis-windows/releases/download/$($versions.redis)/redis-$($versions.redis)-windows-x64.zip"
+    $redisUrl = "https://github.com/zkteco-home/redis-windows/archive/refs/tags/$($versions.redis).zip"
     $redisZip = "$InstallDir\redis.zip"
     Write-Host "   Baixando de $redisUrl ..."
     Invoke-WebRequest -Uri $redisUrl -OutFile $redisZip -UseBasicParsing
-    Expand-Archive -Path $redisZip -DestinationPath $redisDir -Force
-    # Move files from inner folder if present
-    $inner = Get-ChildItem $redisDir -Directory | Select-Object -First 1
-    if ($inner -and (Test-Path "$($inner.FullName)\redis-server.exe")) {
-        Move-Item "$($inner.FullName)\*" $redisDir -Force
-        Remove-Item $inner.FullName -Recurse -Force
+    # Extract to temp dir first, then move contents
+    $redisTemp = "$InstallDir\redis-temp"
+    Expand-Archive -Path $redisZip -DestinationPath $redisTemp -Force
+    # Archive extracts into redis-windows-<version> folder
+    $inner = Get-ChildItem $redisTemp -Directory | Select-Object -First 1
+    if ($inner) {
+        Copy-Item "$($inner.FullName)\*" $redisDir -Recurse -Force
+        Remove-Item $redisTemp -Recurse -Force
     }
     Remove-Item $redisZip -ErrorAction SilentlyContinue
     Write-OK "Redis extraido em $redisDir"
