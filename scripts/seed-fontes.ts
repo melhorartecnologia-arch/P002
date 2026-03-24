@@ -1,355 +1,278 @@
-import { Pool } from "pg";
+import { PrismaClient } from '@prisma/client';
 
-interface Fonte {
-  sigla: string;
-  nome: string;
-  esfera: "FEDERAL" | "ESTADUAL";
-  uf: string | null;
-  tipo_spider: "CHEERIO" | "PLAYWRIGHT";
-  url_portal: string;
-  cron_expression: string;
-  ativo: boolean;
-}
+const prisma = new PrismaClient();
 
-const fontes: Fonte[] = [
+const fontes = [
   // Federal
   {
-    sigla: "DOU",
-    nome: "Diário Oficial da União",
-    esfera: "FEDERAL",
+    nome: 'Diário Oficial da União',
+    esfera: 'FEDERAL' as const,
     uf: null,
-    tipo_spider: "CHEERIO",
-    url_portal: "https://www.in.gov.br/leiturajornal",
-    cron_expression: "0 5 30 * * 1-5",
-    ativo: true,
+    spiderType: 'CHEERIO' as const,
+    urlBase: 'https://www.in.gov.br/leiturajornal',
+    cronExpression: '0 5 * * 1-5',
   },
 
-  // Region: Norte
+  // Norte
   {
-    sigla: "DOAC",
-    nome: "Diário Oficial do Estado do Acre",
-    esfera: "ESTADUAL",
-    uf: "AC",
-    tipo_spider: "CHEERIO",
-    url_portal: "https://www.diario.ac.gov.br",
-    cron_expression: "0 6 0 * * 1-5",
-    ativo: true,
+    nome: 'Diário Oficial do Estado do Acre',
+    esfera: 'ESTADUAL' as const,
+    uf: 'AC',
+    spiderType: 'CHEERIO' as const,
+    urlBase: 'https://www.diario.ac.gov.br',
+    cronExpression: '0 6 * * 1-5',
   },
   {
-    sigla: "DOAL",
-    nome: "Diário Oficial do Estado de Alagoas",
-    esfera: "ESTADUAL",
-    uf: "AL",
-    tipo_spider: "PLAYWRIGHT",
-    url_portal: "https://www.imprensaoficialal.com.br",
-    cron_expression: "0 6 5 * * 1-5",
-    ativo: true,
+    nome: 'Diário Oficial do Estado do Amazonas',
+    esfera: 'ESTADUAL' as const,
+    uf: 'AM',
+    spiderType: 'PLAYWRIGHT' as const,
+    urlBase: 'https://www.imprensaoficial.am.gov.br',
+    cronExpression: '0 6 * * 1-5',
   },
   {
-    sigla: "DOAP",
-    nome: "Diário Oficial do Estado do Amapá",
-    esfera: "ESTADUAL",
-    uf: "AP",
-    tipo_spider: "CHEERIO",
-    url_portal: "https://www.diariooficial.ap.gov.br",
-    cron_expression: "0 6 10 * * 1-5",
-    ativo: true,
+    nome: 'Diário Oficial do Estado do Amapá',
+    esfera: 'ESTADUAL' as const,
+    uf: 'AP',
+    spiderType: 'CHEERIO' as const,
+    urlBase: 'https://www.diariooficial.ap.gov.br',
+    cronExpression: '0 6 * * 1-5',
   },
   {
-    sigla: "DOAM",
-    nome: "Diário Oficial do Estado do Amazonas",
-    esfera: "ESTADUAL",
-    uf: "AM",
-    tipo_spider: "PLAYWRIGHT",
-    url_portal: "https://www.imprensaoficial.am.gov.br",
-    cron_expression: "0 6 15 * * 1-5",
-    ativo: true,
+    nome: 'Diário Oficial do Estado do Pará',
+    esfera: 'ESTADUAL' as const,
+    uf: 'PA',
+    spiderType: 'PLAYWRIGHT' as const,
+    urlBase: 'https://www.ioepa.com.br',
+    cronExpression: '0 6 * * 1-5',
   },
   {
-    sigla: "DOBA",
-    nome: "Diário Oficial do Estado da Bahia",
-    esfera: "ESTADUAL",
-    uf: "BA",
-    tipo_spider: "PLAYWRIGHT",
-    url_portal: "https://dool.egba.ba.gov.br",
-    cron_expression: "0 6 20 * * 1-5",
-    ativo: true,
+    nome: 'Diário Oficial do Estado de Rondônia',
+    esfera: 'ESTADUAL' as const,
+    uf: 'RO',
+    spiderType: 'CHEERIO' as const,
+    urlBase: 'https://diof.ro.gov.br',
+    cronExpression: '0 6 * * 1-5',
   },
   {
-    sigla: "DOCE",
-    nome: "Diário Oficial do Estado do Ceará",
-    esfera: "ESTADUAL",
-    uf: "CE",
-    tipo_spider: "CHEERIO",
-    url_portal: "https://pesquisa.doe.seplag.ce.gov.br",
-    cron_expression: "0 6 25 * * 1-5",
-    ativo: true,
+    nome: 'Diário Oficial do Estado de Roraima',
+    esfera: 'ESTADUAL' as const,
+    uf: 'RR',
+    spiderType: 'CHEERIO' as const,
+    urlBase: 'https://www.imprensaoficial.rr.gov.br',
+    cronExpression: '0 6 * * 1-5',
   },
   {
-    sigla: "DODF",
-    nome: "Diário Oficial do Distrito Federal",
-    esfera: "ESTADUAL",
-    uf: "DF",
-    tipo_spider: "CHEERIO",
-    url_portal: "https://www.dodf.df.gov.br",
-    cron_expression: "0 6 30 * * 1-5",
-    ativo: true,
+    nome: 'Diário Oficial do Estado do Tocantins',
+    esfera: 'ESTADUAL' as const,
+    uf: 'TO',
+    spiderType: 'CHEERIO' as const,
+    urlBase: 'https://diariooficial.to.gov.br',
+    cronExpression: '0 6 * * 1-5',
+  },
+
+  // Nordeste
+  {
+    nome: 'Diário Oficial do Estado de Alagoas',
+    esfera: 'ESTADUAL' as const,
+    uf: 'AL',
+    spiderType: 'PLAYWRIGHT' as const,
+    urlBase: 'https://www.imprensaoficialal.com.br',
+    cronExpression: '0 6 * * 1-5',
   },
   {
-    sigla: "DOES",
-    nome: "Diário Oficial do Estado do Espírito Santo",
-    esfera: "ESTADUAL",
-    uf: "ES",
-    tipo_spider: "PLAYWRIGHT",
-    url_portal: "https://ioes.dio.es.gov.br",
-    cron_expression: "0 6 35 * * 1-5",
-    ativo: true,
+    nome: 'Diário Oficial do Estado da Bahia',
+    esfera: 'ESTADUAL' as const,
+    uf: 'BA',
+    spiderType: 'PLAYWRIGHT' as const,
+    urlBase: 'https://dool.egba.ba.gov.br',
+    cronExpression: '0 6 * * 1-5',
   },
   {
-    sigla: "DOGO",
-    nome: "Diário Oficial do Estado de Goiás",
-    esfera: "ESTADUAL",
-    uf: "GO",
-    tipo_spider: "CHEERIO",
-    url_portal: "https://diariooficial.abc.go.gov.br",
-    cron_expression: "0 6 40 * * 1-5",
-    ativo: true,
+    nome: 'Diário Oficial do Estado do Ceará',
+    esfera: 'ESTADUAL' as const,
+    uf: 'CE',
+    spiderType: 'CHEERIO' as const,
+    urlBase: 'https://pesquisa.doe.seplag.ce.gov.br',
+    cronExpression: '0 6 * * 1-5',
   },
   {
-    sigla: "DOMA",
-    nome: "Diário Oficial do Estado do Maranhão",
-    esfera: "ESTADUAL",
-    uf: "MA",
-    tipo_spider: "PLAYWRIGHT",
-    url_portal: "https://www.diariooficial.ma.gov.br",
-    cron_expression: "0 6 45 * * 1-5",
-    ativo: true,
+    nome: 'Diário Oficial do Estado do Maranhão',
+    esfera: 'ESTADUAL' as const,
+    uf: 'MA',
+    spiderType: 'PLAYWRIGHT' as const,
+    urlBase: 'https://www.diariooficial.ma.gov.br',
+    cronExpression: '0 6 * * 1-5',
   },
   {
-    sigla: "DOMT",
-    nome: "Diário Oficial do Estado de Mato Grosso",
-    esfera: "ESTADUAL",
-    uf: "MT",
-    tipo_spider: "PLAYWRIGHT",
-    url_portal: "https://www.iomat.mt.gov.br",
-    cron_expression: "0 6 50 * * 1-5",
-    ativo: true,
+    nome: 'Diário Oficial do Estado da Paraíba',
+    esfera: 'ESTADUAL' as const,
+    uf: 'PB',
+    spiderType: 'CHEERIO' as const,
+    urlBase: 'https://auniao.pb.gov.br/doe',
+    cronExpression: '0 6 * * 1-5',
   },
   {
-    sigla: "DOMS",
-    nome: "Diário Oficial do Estado de Mato Grosso do Sul",
-    esfera: "ESTADUAL",
-    uf: "MS",
-    tipo_spider: "CHEERIO",
-    url_portal: "https://www.spdo.ms.gov.br/diariodoe",
-    cron_expression: "0 6 55 * * 1-5",
-    ativo: true,
+    nome: 'Diário Oficial do Estado de Pernambuco',
+    esfera: 'ESTADUAL' as const,
+    uf: 'PE',
+    spiderType: 'PLAYWRIGHT' as const,
+    urlBase: 'https://www.cepe.com.br/diariooficial',
+    cronExpression: '0 6 * * 1-5',
   },
   {
-    sigla: "DOMG",
-    nome: "Diário Oficial do Estado de Minas Gerais",
-    esfera: "ESTADUAL",
-    uf: "MG",
-    tipo_spider: "PLAYWRIGHT",
-    url_portal: "https://www.jornalminasgerais.mg.gov.br",
-    cron_expression: "0 7 0 * * 1-5",
-    ativo: true,
+    nome: 'Diário Oficial do Estado do Piauí',
+    esfera: 'ESTADUAL' as const,
+    uf: 'PI',
+    spiderType: 'CHEERIO' as const,
+    urlBase: 'https://www.diariooficial.pi.gov.br',
+    cronExpression: '0 6 * * 1-5',
   },
   {
-    sigla: "DOPA",
-    nome: "Diário Oficial do Estado do Pará",
-    esfera: "ESTADUAL",
-    uf: "PA",
-    tipo_spider: "PLAYWRIGHT",
-    url_portal: "https://www.ioepa.com.br",
-    cron_expression: "0 7 5 * * 1-5",
-    ativo: true,
+    nome: 'Diário Oficial do Estado do Rio Grande do Norte',
+    esfera: 'ESTADUAL' as const,
+    uf: 'RN',
+    spiderType: 'CHEERIO' as const,
+    urlBase: 'http://www.diariooficial.rn.gov.br',
+    cronExpression: '0 6 * * 1-5',
   },
   {
-    sigla: "DOPB",
-    nome: "Diário Oficial do Estado da Paraíba",
-    esfera: "ESTADUAL",
-    uf: "PB",
-    tipo_spider: "CHEERIO",
-    url_portal: "https://auniao.pb.gov.br/doe",
-    cron_expression: "0 7 10 * * 1-5",
-    ativo: true,
+    nome: 'Diário Oficial do Estado de Sergipe',
+    esfera: 'ESTADUAL' as const,
+    uf: 'SE',
+    spiderType: 'CHEERIO' as const,
+    urlBase: 'https://www.diariooficial.se.gov.br',
+    cronExpression: '0 6 * * 1-5',
+  },
+
+  // Centro-Oeste
+  {
+    nome: 'Diário Oficial do Distrito Federal',
+    esfera: 'ESTADUAL' as const,
+    uf: 'DF',
+    spiderType: 'CHEERIO' as const,
+    urlBase: 'https://www.dodf.df.gov.br',
+    cronExpression: '0 6 * * 1-5',
   },
   {
-    sigla: "DOPR",
-    nome: "Diário Oficial do Estado do Paraná",
-    esfera: "ESTADUAL",
-    uf: "PR",
-    tipo_spider: "CHEERIO",
-    url_portal: "https://www.dioe.pr.gov.br",
-    cron_expression: "0 7 15 * * 1-5",
-    ativo: true,
+    nome: 'Diário Oficial do Estado de Goiás',
+    esfera: 'ESTADUAL' as const,
+    uf: 'GO',
+    spiderType: 'CHEERIO' as const,
+    urlBase: 'https://diariooficial.abc.go.gov.br',
+    cronExpression: '0 6 * * 1-5',
   },
   {
-    sigla: "DOPE",
-    nome: "Diário Oficial do Estado de Pernambuco",
-    esfera: "ESTADUAL",
-    uf: "PE",
-    tipo_spider: "PLAYWRIGHT",
-    url_portal: "https://www.cepe.com.br/diariooficial",
-    cron_expression: "0 7 20 * * 1-5",
-    ativo: true,
+    nome: 'Diário Oficial do Estado de Mato Grosso',
+    esfera: 'ESTADUAL' as const,
+    uf: 'MT',
+    spiderType: 'PLAYWRIGHT' as const,
+    urlBase: 'https://www.iomat.mt.gov.br',
+    cronExpression: '0 6 * * 1-5',
   },
   {
-    sigla: "DOPI",
-    nome: "Diário Oficial do Estado do Piauí",
-    esfera: "ESTADUAL",
-    uf: "PI",
-    tipo_spider: "CHEERIO",
-    url_portal: "https://www.diariooficial.pi.gov.br",
-    cron_expression: "0 7 25 * * 1-5",
-    ativo: true,
+    nome: 'Diário Oficial do Estado de Mato Grosso do Sul',
+    esfera: 'ESTADUAL' as const,
+    uf: 'MS',
+    spiderType: 'CHEERIO' as const,
+    urlBase: 'https://www.spdo.ms.gov.br/diariodoe',
+    cronExpression: '0 6 * * 1-5',
+  },
+
+  // Sudeste
+  {
+    nome: 'Diário Oficial do Estado do Espírito Santo',
+    esfera: 'ESTADUAL' as const,
+    uf: 'ES',
+    spiderType: 'PLAYWRIGHT' as const,
+    urlBase: 'https://ioes.dio.es.gov.br',
+    cronExpression: '0 7 * * 1-5',
   },
   {
-    sigla: "DORJ",
-    nome: "Diário Oficial do Estado do Rio de Janeiro",
-    esfera: "ESTADUAL",
-    uf: "RJ",
-    tipo_spider: "PLAYWRIGHT",
-    url_portal: "https://www.ioerj.com.br",
-    cron_expression: "0 7 30 * * 1-5",
-    ativo: true,
+    nome: 'Diário Oficial do Estado de Minas Gerais',
+    esfera: 'ESTADUAL' as const,
+    uf: 'MG',
+    spiderType: 'PLAYWRIGHT' as const,
+    urlBase: 'https://www.jornalminasgerais.mg.gov.br',
+    cronExpression: '0 7 * * 1-5',
   },
   {
-    sigla: "DORN",
-    nome: "Diário Oficial do Estado do Rio Grande do Norte",
-    esfera: "ESTADUAL",
-    uf: "RN",
-    tipo_spider: "CHEERIO",
-    url_portal: "http://www.diariooficial.rn.gov.br",
-    cron_expression: "0 7 35 * * 1-5",
-    ativo: true,
+    nome: 'Diário Oficial do Estado do Rio de Janeiro',
+    esfera: 'ESTADUAL' as const,
+    uf: 'RJ',
+    spiderType: 'PLAYWRIGHT' as const,
+    urlBase: 'https://www.ioerj.com.br',
+    cronExpression: '0 7 * * 1-5',
   },
   {
-    sigla: "DORS",
-    nome: "Diário Oficial do Estado do Rio Grande do Sul",
-    esfera: "ESTADUAL",
-    uf: "RS",
-    tipo_spider: "CHEERIO",
-    url_portal: "https://www.diariooficial.rs.gov.br",
-    cron_expression: "0 7 40 * * 1-5",
-    ativo: true,
+    nome: 'Diário Oficial do Estado de São Paulo',
+    esfera: 'ESTADUAL' as const,
+    uf: 'SP',
+    spiderType: 'PLAYWRIGHT' as const,
+    urlBase: 'https://www.imprensaoficial.com.br',
+    cronExpression: '0 7 * * 1-5',
+  },
+
+  // Sul
+  {
+    nome: 'Diário Oficial do Estado do Paraná',
+    esfera: 'ESTADUAL' as const,
+    uf: 'PR',
+    spiderType: 'CHEERIO' as const,
+    urlBase: 'https://www.dioe.pr.gov.br',
+    cronExpression: '0 7 * * 1-5',
   },
   {
-    sigla: "DORO",
-    nome: "Diário Oficial do Estado de Rondônia",
-    esfera: "ESTADUAL",
-    uf: "RO",
-    tipo_spider: "CHEERIO",
-    url_portal: "https://diof.ro.gov.br",
-    cron_expression: "0 7 45 * * 1-5",
-    ativo: true,
+    nome: 'Diário Oficial do Estado do Rio Grande do Sul',
+    esfera: 'ESTADUAL' as const,
+    uf: 'RS',
+    spiderType: 'CHEERIO' as const,
+    urlBase: 'https://www.diariooficial.rs.gov.br',
+    cronExpression: '0 7 * * 1-5',
   },
   {
-    sigla: "DORR",
-    nome: "Diário Oficial do Estado de Roraima",
-    esfera: "ESTADUAL",
-    uf: "RR",
-    tipo_spider: "CHEERIO",
-    url_portal: "https://www.imprensaoficial.rr.gov.br",
-    cron_expression: "0 7 50 * * 1-5",
-    ativo: true,
-  },
-  {
-    sigla: "DOSC",
-    nome: "Diário Oficial do Estado de Santa Catarina",
-    esfera: "ESTADUAL",
-    uf: "SC",
-    tipo_spider: "CHEERIO",
-    url_portal: "https://www.doe.sea.sc.gov.br",
-    cron_expression: "0 7 55 * * 1-5",
-    ativo: true,
-  },
-  {
-    sigla: "DOSP",
-    nome: "Diário Oficial do Estado de São Paulo",
-    esfera: "ESTADUAL",
-    uf: "SP",
-    tipo_spider: "PLAYWRIGHT",
-    url_portal: "https://www.imprensaoficial.com.br",
-    cron_expression: "0 8 0 * * 1-5",
-    ativo: true,
-  },
-  {
-    sigla: "DOSE",
-    nome: "Diário Oficial do Estado de Sergipe",
-    esfera: "ESTADUAL",
-    uf: "SE",
-    tipo_spider: "CHEERIO",
-    url_portal: "https://www.diariooficial.se.gov.br",
-    cron_expression: "0 8 5 * * 1-5",
-    ativo: true,
-  },
-  {
-    sigla: "DOTO",
-    nome: "Diário Oficial do Estado do Tocantins",
-    esfera: "ESTADUAL",
-    uf: "TO",
-    tipo_spider: "CHEERIO",
-    url_portal: "https://diariooficial.to.gov.br",
-    cron_expression: "0 8 10 * * 1-5",
-    ativo: true,
+    nome: 'Diário Oficial do Estado de Santa Catarina',
+    esfera: 'ESTADUAL' as const,
+    uf: 'SC',
+    spiderType: 'CHEERIO' as const,
+    urlBase: 'https://www.doe.sea.sc.gov.br',
+    cronExpression: '0 7 * * 1-5',
   },
 ];
 
 async function seed() {
-  const pool = new Pool({
-    connectionString:
-      process.env.DATABASE_URL ||
-      "postgresql://dora:dora_secret@localhost:5432/dora",
-  });
+  console.log('Seeding fontes...\n');
 
-  const client = await pool.connect();
+  let created = 0;
+  let skipped = 0;
 
-  try {
-    console.log("Seeding fontes table...");
+  for (const fonte of fontes) {
+    // Check if already exists by nome + esfera + uf
+    const existing = await prisma.fonte.findFirst({
+      where: {
+        nome: fonte.nome,
+        esfera: fonte.esfera,
+        uf: fonte.uf,
+      },
+    });
 
-    await client.query("BEGIN");
-
-    for (const fonte of fontes) {
-      await client.query(
-        `INSERT INTO fontes (sigla, nome, esfera, uf, tipo_spider, url_portal, cron_expression, ativo)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-         ON CONFLICT (sigla) DO UPDATE SET
-           nome = EXCLUDED.nome,
-           esfera = EXCLUDED.esfera,
-           uf = EXCLUDED.uf,
-           tipo_spider = EXCLUDED.tipo_spider,
-           url_portal = EXCLUDED.url_portal,
-           cron_expression = EXCLUDED.cron_expression,
-           ativo = EXCLUDED.ativo`,
-        [
-          fonte.sigla,
-          fonte.nome,
-          fonte.esfera,
-          fonte.uf,
-          fonte.tipo_spider,
-          fonte.url_portal,
-          fonte.cron_expression,
-          fonte.ativo,
-        ]
-      );
-      console.log(`  Seeded: ${fonte.sigla} - ${fonte.nome}`);
+    if (existing) {
+      console.log(`  [SKIP] ${fonte.uf ?? 'BR'} - ${fonte.nome}`);
+      skipped++;
+      continue;
     }
 
-    await client.query("COMMIT");
-    console.log(`\nSuccessfully seeded ${fontes.length} fontes.`);
-  } catch (error) {
-    await client.query("ROLLBACK");
-    console.error("Error seeding fontes:", error);
-    throw error;
-  } finally {
-    client.release();
-    await pool.end();
+    await prisma.fonte.create({ data: fonte });
+    console.log(`  [OK]   ${fonte.uf ?? 'BR'} - ${fonte.nome}`);
+    created++;
   }
+
+  console.log(`\nSeed concluído: ${created} criadas, ${skipped} já existiam.`);
 }
 
-seed().catch((err) => {
-  console.error("Seed failed:", err);
-  process.exit(1);
-});
+seed()
+  .catch((err) => {
+    console.error('Seed failed:', err);
+    process.exit(1);
+  })
+  .finally(() => prisma.$disconnect());

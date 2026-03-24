@@ -22,7 +22,8 @@
     "local:setup": "node scripts/dev-local.mjs setup",
     "local:start": "node scripts/dev-local.mjs all",
     "local:infra": "node scripts/dev-local.mjs infra",
-    "local:app": "node scripts/dev-local.mjs app"
+    "local:app": "node scripts/dev-local.mjs app",
+    "db:seed": "npx tsx scripts/seed-fontes.ts"
   },
   "devDependencies": {
     "@types/node": "^22.13.0",
