@@ -12,3 +12,6 @@ coverage/
 .cache/
 tmp/
 temp/
+
+# Local services (dev sem Docker)
+local-services/

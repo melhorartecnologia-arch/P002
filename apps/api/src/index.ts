@@ -23,6 +23,8 @@ async function buildApp() {
         },
       }),
     },
+    // Allow longer requests for PDF processing via Claude API
+    requestTimeout: 5 * 60 * 1000, // 5 minutes
   });
 
   /** CORS */

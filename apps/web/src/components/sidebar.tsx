@@ -11,12 +11,14 @@ import {
   BarChart3,
   Settings,
   BookOpen,
+  Database,
 } from 'lucide-react';
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/busca', label: 'Busca', icon: Search },
   { href: '/edicoes', label: 'Edições', icon: FileText },
+  { href: '/fontes', label: 'Fontes', icon: Database },
   { href: '/upload', label: 'Upload', icon: Upload },
   { href: '/alertas', label: 'Alertas', icon: Bell },
   { href: '/analytics', label: 'Análises', icon: BarChart3 },

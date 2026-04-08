@@ -1,28 +1,56 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { createHash } from 'node:crypto';
-import { createMinioClient, MinioStorage } from '@dora/storage';
-import { processingQueue } from '@dora/queue';
-import { MINIO_PATHS } from '@dora/shared';
+import Anthropic from '@anthropic-ai/sdk';
 import { verifyToken, requireRole } from '../middleware/auth.js';
 
 const ALLOWED_MIME_TYPES = ['application/pdf'];
 
+const ANALYSIS_PROMPT = `Você é um especialista em análise de Diários Oficiais brasileiros.
+
+Analise este PDF de Diário Oficial e extraia TODOS os atos normativos contidos nele.
+
+Para cada ato encontrado, retorne um objeto com os seguintes campos:
+- tipo_ato: O tipo (DECRETO, PORTARIA, EDITAL, RESOLUCAO, INSTRUCAO_NORMATIVA, LEI, MEDIDA_PROVISORIA, ATA, CONTRATO, CONVENIO, AVISO, DESPACHO, PARECER, EXTRATO, OUTRO)
+- orgao_emissor: O órgão responsável
+- titulo: Título ou ementa do ato
+- conteudo_texto: Texto integral do ato
+- resumo: Resumo executivo em 2-3 frases
+- pagina_inicio: Página onde inicia (estimativa)
+- pagina_fim: Página onde termina (estimativa)
+- temas: Array de objetos {area, subarea, tema, score} classificando o ato tematicamente
+- entidades: Objeto com {pessoas: [{nome, papel}], orgaos: [{nome, tipo}], valores: [{valor, natureza}], datas: [{data, natureza}]}
+
+FORMATO DE SAÍDA (JSON array estrito):
+\`\`\`json
+[
+  {
+    "tipo_ato": "PORTARIA",
+    "orgao_emissor": "Secretaria de Educação",
+    "titulo": "Portaria nº 123 - Nomeia servidor...",
+    "conteudo_texto": "texto completo...",
+    "resumo": "resumo executivo...",
+    "pagina_inicio": 1,
+    "pagina_fim": 1,
+    "temas": [{"area": "ADMINISTRAÇÃO PÚBLICA", "subarea": "Pessoal", "tema": "Nomeação", "score": 0.95}],
+    "entidades": {"pessoas": [], "orgaos": [], "valores": [], "datas": []}
+  }
+]
+\`\`\`
+
+Responda APENAS com o JSON array válido dentro de um bloco \`\`\`json. Extraia TODOS os atos, não omita nenhum.`;
+
 /**
- * Upload route plugin.
- * Provides endpoints for uploading PDF files and checking processing status.
+ * Simplified upload route.
+ * Sends PDF directly to Claude API for analysis, no MinIO/queue needed.
  */
 export async function uploadRoutes(app: FastifyInstance): Promise<void> {
-  const minioClient = createMinioClient();
-  const storage = new MinioStorage(minioClient, process.env.MINIO_BUCKET ?? 'dora');
-
-  // Ensure bucket exists on startup
-  await storage.ensureBucket();
+  const anthropic = new Anthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY,
+  });
 
   /**
    * POST /api/v1/upload
-   * Multipart file upload endpoint.
-   * Validates that the file is a PDF, computes its SHA-256 hash, stores in MinIO,
-   * creates an edicao record, and enqueues a processing job.
+   * Upload a PDF and process it directly via Claude API.
    */
   app.post(
     '/',
@@ -61,7 +89,7 @@ export async function uploadRoutes(app: FastifyInstance): Promise<void> {
         });
       }
 
-      // Compute SHA-256 hash
+      // Compute SHA-256 hash for deduplication
       const hashConteudo = createHash('sha256').update(buffer).digest('hex');
 
       // Check for duplicate
@@ -78,14 +106,7 @@ export async function uploadRoutes(app: FastifyInstance): Promise<void> {
         });
       }
 
-      // Store in MinIO
-      const minioPath = `${MINIO_PATHS.originals}${hashConteudo}.pdf`;
-      await storage.upload(minioPath, buffer, {
-        'Content-Type': 'application/pdf',
-        'X-Original-Filename': file.filename,
-      });
-
-      // Parse form fields (fonteId, numero, dataPublicacao, tipo)
+      // Parse form fields
       const fields = file.fields as Record<string, { value?: string }>;
       const fonteId = fields['fonteId']?.value;
       const numero = fields['numero']?.value ?? 'MANUAL';
@@ -100,7 +121,7 @@ export async function uploadRoutes(app: FastifyInstance): Promise<void> {
         });
       }
 
-      // Create edicao record
+      // Create edicao record as PROCESSANDO
       const edicao = await app.prisma.edicao.create({
         data: {
           fonteId,
@@ -109,102 +130,163 @@ export async function uploadRoutes(app: FastifyInstance): Promise<void> {
           tipo,
           hashConteudo,
           urlOriginal: `upload://${file.filename}`,
-          minioPath,
-          totalPaginas: 0, // Will be determined during processing
-          status: 'PENDENTE',
+          minioPath: `direct-upload/${hashConteudo}.pdf`,
+          totalPaginas: 0,
+          status: 'PROCESSANDO',
         },
       });
 
-      // Enqueue processing job
-      await processingQueue.add(
-        'process-edicao',
-        {
-          edicaoId: edicao.id,
-          etapa: 'TRANSCRICAO',
-          tentativa: 0,
-        },
-        { priority: 1 },
-      );
+      try {
+        // Send PDF directly to Claude API
+        app.log.info(`Processing PDF ${file.filename} (${(buffer.length / 1024 / 1024).toFixed(1)}MB) via Claude API...`);
 
-      return reply.status(201).send({
-        message: 'Upload realizado com sucesso. Processamento enfileirado.',
-        data: {
-          edicaoId: edicao.id,
-          hashConteudo,
-          minioPath,
-          status: 'PENDENTE',
-        },
-      });
-    },
-  );
+        const pdfBase64 = buffer.toString('base64');
 
-  /**
-   * GET /api/v1/upload/:id/status
-   * Check the upload/processing status for a given edition.
-   * Supports WebSocket upgrade for real-time status updates, or standard polling.
-   */
-  app.get(
-    '/:id/status',
-    { websocket: true },
-    async (socket, request: FastifyRequest<{ Params: { id: string } }>) => {
-      const { id } = request.params;
-
-      const sendStatus = async () => {
-        const edicao = await app.prisma.edicao.findUnique({
-          where: { id },
-          include: { processingJob: true },
+        const response = await anthropic.messages.create({
+          model: process.env.CLAUDE_MODEL_EXTRACTION ?? 'claude-sonnet-4-20250514',
+          max_tokens: 16384,
+          messages: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'document',
+                  source: {
+                    type: 'base64',
+                    media_type: 'application/pdf',
+                    data: pdfBase64,
+                  },
+                },
+                {
+                  type: 'text',
+                  text: ANALYSIS_PROMPT,
+                },
+              ],
+            },
+          ],
         });
 
-        if (!edicao) {
-          socket.send(
-            JSON.stringify({
-              error: 'Not Found',
-              message: `Edição com ID ${id} não encontrada`,
-            }),
-          );
-          socket.close();
-          return null;
-        }
+        // Parse Claude's response
+        const textBlock = response.content.find(
+          (block): block is Anthropic.TextBlock => block.type === 'text',
+        );
+        const responseText = textBlock?.text ?? '';
 
-        const statusPayload = {
-          edicaoId: edicao.id,
-          status: edicao.status,
-          etapa: edicao.processingJob?.etapa ?? null,
-          tentativas: edicao.processingJob?.tentativas ?? 0,
-          erro: edicao.processingJob?.erro ?? null,
-          processadoEm: edicao.processadoEm,
+        const jsonMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/);
+        const jsonStr = jsonMatch ? jsonMatch[1].trim() : responseText.trim();
+
+        const atos: Array<{
+          tipo_ato: string;
+          orgao_emissor: string;
+          titulo: string;
+          conteudo_texto: string;
+          resumo: string;
+          pagina_inicio: number;
+          pagina_fim: number;
+          temas: Array<{ area: string; subarea: string; tema: string; score: number }>;
+          entidades: Record<string, unknown>;
+        }> = JSON.parse(jsonStr);
+
+        // Map tipo_ato strings to valid TipoAto enum values
+        const TIPO_ATO_MAP: Record<string, string> = {
+          DECRETO: 'DECRETO',
+          PORTARIA: 'PORTARIA',
+          EDITAL: 'EDITAL',
+          RESOLUCAO: 'RESOLUCAO',
+          'RESOLUÇÃO': 'RESOLUCAO',
+          INSTRUCAO_NORMATIVA: 'INSTRUCAO_NORMATIVA',
+          'INSTRUÇÃO NORMATIVA': 'INSTRUCAO_NORMATIVA',
+          LEI: 'LEI',
+          MEDIDA_PROVISORIA: 'MEDIDA_PROVISORIA',
+          'MEDIDA PROVISÓRIA': 'MEDIDA_PROVISORIA',
+          ATA: 'ATA',
+          CONTRATO: 'CONTRATO',
+          CONVENIO: 'CONVENIO',
+          'CONVÊNIO': 'CONVENIO',
+          AVISO: 'AVISO',
+          DESPACHO: 'DESPACHO',
+          PARECER: 'PARECER',
+          EXTRATO: 'EXTRATO',
+          OUTRO: 'OUTRO',
         };
 
-        socket.send(JSON.stringify(statusPayload));
-        return edicao.status;
-      };
+        const modelUsed = response.model ?? process.env.CLAUDE_MODEL_EXTRACTION ?? 'claude-sonnet-4-20250514';
+        const tokensUsed = (response.usage?.input_tokens ?? 0) + (response.usage?.output_tokens ?? 0);
 
-      // Send initial status
-      const initialStatus = await sendStatus();
-      if (!initialStatus) return;
+        // Save atos to database
+        const createdAtos = [];
+        for (const ato of atos) {
+          const tipoAto = TIPO_ATO_MAP[ato.tipo_ato?.toUpperCase()] ?? 'OUTRO';
 
-      // Poll every 3 seconds until completed or errored
-      const interval = setInterval(async () => {
-        try {
-          const status = await sendStatus();
-          if (status === 'CONCLUIDO' || status === 'ERRO' || status === null) {
-            clearInterval(interval);
-            socket.close();
-          }
-        } catch {
-          clearInterval(interval);
-          socket.close();
+          const created = await app.prisma.ato.create({
+            data: {
+              edicaoId: edicao.id,
+              tipoAto: tipoAto as any,
+              orgaoEmissor: ato.orgao_emissor ?? 'Não identificado',
+              titulo: ato.titulo ?? 'Sem título',
+              conteudoTexto: ato.conteudo_texto ?? '',
+              resumo: ato.resumo ?? null,
+              paginaInicio: ato.pagina_inicio ?? 1,
+              paginaFim: ato.pagina_fim ?? 1,
+              temas: ato.temas ?? [],
+              entidades: ato.entidades ?? {},
+              claudeModel: modelUsed,
+            },
+          });
+          createdAtos.push(created);
         }
-      }, 3000);
 
-      socket.on('close', () => {
-        clearInterval(interval);
-      });
+        // Update edicao as completed
+        await app.prisma.edicao.update({
+          where: { id: edicao.id },
+          data: {
+            status: 'CONCLUIDO',
+            totalPaginas: Math.max(...atos.map((a) => a.pagina_fim ?? 1), 1),
+            claudeTokensUsed: tokensUsed,
+            processadoEm: new Date(),
+          },
+        });
+
+        app.log.info(`PDF processed: ${createdAtos.length} atos extracted, ${tokensUsed} tokens used`);
+
+        return reply.status(201).send({
+          message: 'Upload e processamento concluídos com sucesso.',
+          data: {
+            edicaoId: edicao.id,
+            status: 'CONCLUIDO',
+            totalAtos: createdAtos.length,
+            tokensUsed,
+            atos: createdAtos.map((a) => ({
+              id: a.id,
+              tipo: a.tipoAto,
+              orgao: a.orgaoEmissor,
+              titulo: a.titulo,
+              resumo: a.resumo,
+            })),
+          },
+        });
+      } catch (err) {
+        // Mark as error
+        app.log.error(err, 'Error processing PDF via Claude API');
+
+        await app.prisma.edicao.update({
+          where: { id: edicao.id },
+          data: { status: 'ERRO' },
+        });
+
+        const message = err instanceof Error ? err.message : 'Erro desconhecido';
+        return reply.status(500).send({
+          statusCode: 500,
+          error: 'Internal Server Error',
+          message: `Erro ao processar PDF: ${message}`,
+          edicaoId: edicao.id,
+        });
+      }
     },
   );
 
   /**
-   * GET /api/v1/upload/:id/status (HTTP polling fallback)
+   * GET /api/v1/upload/:id/status-poll
    * Returns current processing status as JSON.
    */
   app.get(
@@ -214,7 +296,11 @@ export async function uploadRoutes(app: FastifyInstance): Promise<void> {
 
       const edicao = await app.prisma.edicao.findUnique({
         where: { id },
-        include: { processingJob: true },
+        include: {
+          atos: {
+            select: { id: true, tipoAto: true, titulo: true, resumo: true },
+          },
+        },
       });
 
       if (!edicao) {
@@ -229,10 +315,9 @@ export async function uploadRoutes(app: FastifyInstance): Promise<void> {
         data: {
           edicaoId: edicao.id,
           status: edicao.status,
-          etapa: edicao.processingJob?.etapa ?? null,
-          tentativas: edicao.processingJob?.tentativas ?? 0,
-          erro: edicao.processingJob?.erro ?? null,
+          totalAtos: edicao.atos.length,
           processadoEm: edicao.processadoEm,
+          atos: edicao.atos,
         },
       });
     },
